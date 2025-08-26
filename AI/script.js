@@ -1616,9 +1616,5 @@ async function describeUploadedImage(promptText) {
         } else {
             addMessage('I could not describe this image. Please try again.', 'bot');
         }
-    } catch (e) {
-        console.error('Describe error:', e);
-        removeTypingIndicator();
-        addMessage('Error while describing the image. Please try again.', 'bot');
     }
 }
