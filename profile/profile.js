@@ -95,6 +95,20 @@ const userData = {
     ]
 };
 
+// Override with saved profile name if present
+try {
+    const saved = localStorage.getItem('userProfile');
+    if (saved) {
+        const profile = JSON.parse(saved);
+        const name = (profile && profile.fullName && profile.fullName.trim()) ? profile.fullName.trim() : null;
+        if (name) {
+            userData.name = name;
+            const nameEl = document.getElementById('userName');
+            if (nameEl) nameEl.textContent = name;
+        }
+    }
+} catch (_) {}
+
 // Animate stats counting
 gsap.to('#chatCount', {
     innerText: userData.stats.chats,
