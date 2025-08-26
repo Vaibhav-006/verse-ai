@@ -1515,17 +1515,26 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// Add notification function
+// Unified notification function (reuses upload-status popup styles)
 function showNotification(message, type = 'info') {
-    const notification = document.createElement('div');
-    notification.className = `notification ${type}`;
-    notification.textContent = message;
-    document.body.appendChild(notification);
-
-    // Remove notification after 3 seconds
-    setTimeout(() => {
-        notification.remove();
-    }, 3000);
+    try {
+        if (type === 'error') {
+            return showUploadError(message);
+        }
+        if (type === 'success') {
+            return showUploadSuccess(message);
+        }
+        // Info/warn fallback: use the same upload-status element with success style but shorter timeout
+        const status = document.querySelector('.upload-status');
+        if (status) {
+            status.textContent = message;
+            status.className = 'upload-status success';
+            setTimeout(() => (status.className = 'upload-status'), 2000);
+            return;
+        }
+    } catch (e) {
+        console.warn('showNotification fallback:', e);
+    }
 }
 
 // ---- Command router + image helpers ----
