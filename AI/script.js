@@ -41,6 +41,11 @@ document.querySelector('.theme-toggle').addEventListener('click', () => {
         duration: 0.5,
         ease: "power2.inOut"
     });
+
+// Refresh chats when user returns to the tab/window (helps after re-login from Home)
+window.addEventListener('focus', async () => {
+    try { await populateServerChatsSidebar(); } catch (_) {}
+});
 });
 
 // Auto-resize textarea
@@ -1013,12 +1018,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Load voices first
     await loadVoices();
     
+    // Populate server chats ASAP (works even if speech recognition is unsupported)
+    try { await populateServerChatsSidebar(); } catch (_) {}
+    
     // Check for browser support
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
         console.error('Speech recognition not supported');
         document.querySelector('.mic-btn').style.display = 'none';
-        return;
+        // Do NOT return early; continue initializing rest of the UI
     }
 
     // First request microphone permission
@@ -1075,8 +1083,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.querySelector('.mic-btn').style.display = 'none';
     }
 
-    // Show server chats in sidebar if logged in
-    try { await populateServerChatsSidebar(); } catch (_) {}
+    // (Already populated above)
 
     // Handle placeholder text for different screen sizes
     const updatePlaceholder = () => {
