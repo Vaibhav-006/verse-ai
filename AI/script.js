@@ -4,6 +4,11 @@ let API_KEY = 'AIzaSyBLtiBnsRgy4TqUyMbGKdB_5-yF5ZMQHh4';
 const BACKEND_BASE = 'https://verse-ai.onrender.com';
 // Use a widely available stable model; 2.0 endpoints can be rolled out gradually
 const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+// Free image generation (Pollinations) and OCR (OCR.space)
+const POLLINATIONS_BASE = 'https://image.pollinations.ai/prompt/';
+const OCR_SPACE_URL = 'https://api.ocr.space/parse/image';
+// Demo OCR key is rate-limited; replace with your own for production
+const OCR_SPACE_API_KEY = 'helloworld';
 
 let isDarkMode = true; // Set dark mode as default
 document.body.setAttribute('data-theme', 'dark'); // Set dark theme by default
@@ -319,18 +324,24 @@ function showUploadError(message) {
 async function sendMessage() {
     const userInput = textarea.value.trim();
     if (!userInput && !fileContent) return;
-    // Prevent overlapping sends which can cause stuck state
-    if (isTyping) {
-        try { removeTypingIndicator(); } catch (_) {}
-        if (currentMessageTl) { try { currentMessageTl.progress(1); } catch (_) {} }
-        isTyping = false;
-    }
 
     // Add user message to chat with file context
     let messageText = userInput || '';
     
     // Add user message without the "Analyzing" text
     addMessage(messageText, 'user');
+
+    // Route special commands (/imagine, /ocr) before calling Gemini
+    try {
+        const handled = await handleCommands(messageText);
+        if (handled) {
+            textarea.value = '';
+            textarea.style.height = 'auto';
+            return;
+        }
+    } catch (e) {
+        console.warn('Command handling error:', e);
+    }
 
     // Persist user message immediately if logged in
     let createdServerChat = false;
@@ -388,14 +399,12 @@ async function sendMessage() {
         });
         const respText = await response.text();
         if (!response.ok) {
-            console.error('Gemini error status/body:', response.status, respText.slice(0, 400));
-            throw new Error(`Gemini API error ${response.status}: ${respText.slice(0, 200)}`);
+            throw new Error(`Gemini API error ${response.status}: ${respText.slice(0, 400)}`);
         }
         try {
             data = JSON.parse(respText);
         } catch (e) {
-            console.error('Gemini non-JSON:', respText.slice(0, 400));
-            throw new Error(`Gemini non-JSON response`);
+            throw new Error(`Gemini non-JSON response: ${respText.slice(0, 400)}`);
         }
         
         removeTypingIndicator();
@@ -416,18 +425,17 @@ async function sendMessage() {
             // fallback if text is not present
             addMessage('[Received non-text content from model]', 'bot');
         } else if (data.error) {
-            throw new Error(`Gemini API returned error: ${data.error.message || JSON.stringify(data.error).slice(0, 200)}`);
+            throw new Error(`Gemini API returned error: ${data.error.message || JSON.stringify(data.error)}`);
         } else {
             throw new Error('Invalid response format from Gemini');
         }
 
     } catch (error) {
-        console.error('sendMessage failed:', error);
+        console.error('Error:', error);
         removeTypingIndicator();
-        isTyping = false;
         const msg =
           error && String(error).includes('Gemini')
-            ? 'I could not reach Gemini right now. Please try again in a moment.'
+            ? 'Gemini is not configured. Please try again later.'
             : 'Sorry, I encountered an error. Please try again.';
         addMessage(msg, 'bot');
     }
@@ -438,33 +446,24 @@ const tl = gsap.timeline();
 
 // Enhanced initial animation
 window.addEventListener('load', () => {
-    const hasHeader = document.querySelector('.chat-header');
-    const hasContainer = document.querySelector('.chat-container');
-    const hasInput = document.querySelector('.chat-input-container');
-    if (hasHeader) {
-        tl.from('.chat-header', {
-            y: -50,
-            opacity: 0,
-            duration: 0.8,
-            ease: "back.out(1.7)"
-        });
-    }
-    if (hasContainer) {
-        tl.from('.chat-container', {
-            scale: 0.8,
-            opacity: 0,
-            duration: 0.8,
-            ease: "power4.out"
-        }, "-=0.4");
-    }
-    if (hasInput) {
-        tl.from('.chat-input-container', {
-            y: 50,
-            opacity: 0,
-            duration: 0.8,
-            ease: "back.out(1.7)"
-        }, "-=0.4");
-    }
+    tl.from('.chat-header', {
+        y: -50,
+        opacity: 0,
+        duration: 0.8,
+        ease: "back.out(1.7)"
+    })
+    .from('.chat-container', {
+        scale: 0.8,
+        opacity: 0,
+        duration: 0.8,
+        ease: "power4.out"
+    }, "-=0.4")
+    .from('.chat-input-container', {
+        y: 50,
+        opacity: 0,
+        duration: 0.8,
+        ease: "back.out(1.7)"
+    }, "-=0.4");
 });
 
 // Modify addMessage function to include auto-scroll
@@ -707,14 +706,36 @@ function renderMessageSimple(role, text, container) {
     container.appendChild(messageDiv);
 }
 
+// Minimal image bubble renderer for generated images and previews
+function addImageBubble(imageUrl, caption = '', sender = 'bot') {
+    const messagesContainer = document.getElementById('chatMessages');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${sender}-message`;
+    if (sender === 'bot') {
+        const avatar = document.createElement('div');
+        avatar.className = 'bot-avatar';
+        avatar.innerHTML = '<i class="fas fa-robot"></i>';
+        messageDiv.appendChild(avatar);
+    }
+    const content = document.createElement('div');
+    content.className = 'message-content';
+    const img = document.createElement('img');
+    img.src = imageUrl;
+    img.alt = caption || 'image';
+    img.loading = 'lazy';
+    content.appendChild(img);
+    if (caption) {
+        const cap = document.createElement('div');
+        cap.className = 'image-caption';
+        cap.textContent = caption;
+        content.appendChild(cap);
+    }
+    messageDiv.appendChild(content);
+    messagesContainer.appendChild(messageDiv);
+}
+
 async function loadServerChatToUI(serverId) {
     try {
-        // Reset any ongoing typing/speaking state before switching
-        try { removeTypingIndicator(); } catch (_) {}
-        if (currentMessageTl) { try { currentMessageTl.progress(1); } catch (_) {} }
-        stopSpeaking();
-        isTyping = false;
-
         const chat = await fetchChat(serverId);
         if (!chat) return;
         let localId = localIdByServerId.get(serverId);
@@ -737,19 +758,6 @@ async function loadServerChatToUI(serverId) {
         if (welcomeScreen) welcomeScreen.remove();
         chatMessages.innerHTML = '';
         (chat.messages || []).forEach(m => renderMessageSimple(m.role, m.content, chatMessages));
-
-        // Ensure a local conversation entry exists for this server chat
-        let existing = conversations.find(c => c.id === localId);
-        if (!existing) {
-            conversations.push({
-                id: localId,
-                messages: chatMessages.innerHTML,
-                title: chat.title || 'New chat'
-            });
-        } else {
-            existing.messages = chatMessages.innerHTML;
-            existing.title = existing.title || chat.title || existing.title;
-        }
     } catch (e) {
         console.error('Failed to load server chat:', e);
     }
@@ -789,16 +797,7 @@ function addToChatHistory(text) {
     }
 
     // Add message to current conversation
-    let currentConversation = conversations.find(c => c.id === currentConversationId);
-    if (!currentConversation) {
-        // This can happen when continuing a server-loaded chat without a local stub
-        currentConversation = {
-            id: currentConversationId,
-            messages: '',
-            title: text.substring(0, 30) + (text.length > 30 ? '...' : '')
-        };
-        conversations.push(currentConversation);
-    }
+    const currentConversation = conversations.find(c => c.id === currentConversationId);
     const messages = document.getElementById('chatMessages').innerHTML;
     currentConversation.messages = messages;
 
@@ -1069,15 +1068,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // Check for browser support
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const hasSpeechRecognition = !!SpeechRecognition;
-    if (!hasSpeechRecognition) {
+    if (!SpeechRecognition) {
         console.error('Speech recognition not supported');
-        const mic = document.querySelector('.mic-btn');
-        if (mic) mic.style.display = 'none';
+        document.querySelector('.mic-btn').style.display = 'none';
+        // Do NOT return early; continue initializing rest of the UI
     }
 
-    // Only request microphone permission and init recognition if supported
-    if (hasSpeechRecognition) try {
+    // First request microphone permission
+    try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         stream.getTracks().forEach(track => track.stop()); // Stop the stream after getting permission
         
@@ -1123,12 +1121,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
 
         const micButton = document.querySelector('.mic-btn');
-        if (micButton) micButton.addEventListener('click', toggleSpeechRecognition);
+        micButton.addEventListener('click', toggleSpeechRecognition);
 
     } catch (err) {
-        console.error('Microphone permission denied or init failed:', err);
-        const mic = document.querySelector('.mic-btn');
-        if (mic) mic.style.display = 'none';
+        console.error('Microphone permission denied:', err);
+        document.querySelector('.mic-btn').style.display = 'none';
     }
 
     // (Already populated above)
@@ -1369,3 +1366,65 @@ function showNotification(message, type = 'info') {
     }, 3000);
 }
 
+// ---- Command router + image helpers ----
+async function handleCommands(inputText) {
+    const trimmed = (inputText || '').trim();
+    if (!trimmed) return false;
+    // Image generation commands
+    const imgCmdMatch = trimmed.match(/\/(imagine|image|img|im)\b/i);
+    if (imgCmdMatch) {
+        let prompt = trimmed.replace(/.*?\/(imagine|image|img|im)\b\s*/i, '');
+        prompt = prompt.replace(/^generate(\s+an)?(\s+image)?(\s+of)?\s*/i, '').trim();
+        if (!prompt) {
+            addMessage('Usage: /imagine your prompt here', 'bot');
+            return true;
+        }
+        await generateImageWithPollinations(prompt);
+        return true;
+    }
+    // OCR command
+    if (/^\/?ocr\b/i.test(trimmed)) {
+        if (!uploadedFile || !uploadedFile.type || !uploadedFile.type.startsWith('image/')) {
+            addMessage('Please upload an image first, then send /ocr', 'bot');
+            return true;
+        }
+        await runOcrOnUploadedImage();
+        return true;
+    }
+    return false;
+}
+
+async function generateImageWithPollinations(prompt) {
+    const encoded = encodeURIComponent(prompt);
+    const url = `${POLLINATIONS_BASE}${encoded}?nologo=true&enhance=true&model=flux&aspect=1:1`;
+    addMessage(`Generating image for: ${prompt}`, 'bot');
+    addImageBubble(url, prompt, 'bot');
+}
+
+async function runOcrOnUploadedImage() {
+    try {
+        addTypingIndicator();
+        const base64 = await fileToBase64(uploadedFile);
+        const form = new FormData();
+        form.append('base64Image', base64);
+        form.append('language', 'eng');
+        form.append('isOverlayRequired', 'false');
+        form.append('detectOrientation', 'true');
+        form.append('scale', 'true');
+        form.append('OCREngine', '2');
+        form.append('apikey', OCR_SPACE_API_KEY);
+
+        const resp = await fetch(OCR_SPACE_URL, { method: 'POST', body: form });
+        const data = await resp.json();
+        removeTypingIndicator();
+
+        const parsedText = (data && !data.IsErroredOnProcessing && data.ParsedResults && data.ParsedResults[0] && data.ParsedResults[0].ParsedText) || '';
+        const previewUrl = URL.createObjectURL(uploadedFile);
+        addImageBubble(previewUrl, 'OCR input image', 'bot');
+        addMessage(parsedText.trim() || 'OCR failed. Please try again later.', 'bot');
+    } catch (e) {
+        console.error('OCR error:', e);
+        removeTypingIndicator();
+        addMessage('Error during OCR. Please try again.', 'bot');
+    }
+}
