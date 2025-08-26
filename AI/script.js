@@ -1388,7 +1388,24 @@ async function handleCommands(inputText) {
             addMessage('Please upload an image first, then send /ocr', 'bot');
             return true;
         }
+        // If user adds a question after /ocr, treat it as a request to describe the image
+        const after = trimmed.replace(/^\/?ocr\b\s*/i, '');
+        if (after && /\b(what|who|where|why|how|describe|about|explain)\b/i.test(after)) {
+            const prompt = after.trim() || 'Describe this image in detail.';
+            await describeUploadedImage(prompt);
+            return true;
+        }
         await runOcrOnUploadedImage();
+        return true;
+    }
+    // Describe uploaded image
+    if (/^\/?(describe|vision|des)\b/i.test(trimmed)) {
+        if (!uploadedFile || !uploadedFile.type || !uploadedFile.type.startsWith('image/')) {
+            addMessage('Please upload an image first, then send /describe', 'bot');
+            return true;
+        }
+        const prompt = trimmed.replace(/^\/?(describe|vision|des)\b\s*/i, '').trim() || 'Describe this image in detail.';
+        await describeUploadedImage(prompt);
         return true;
     }
     return false;
@@ -1404,6 +1421,13 @@ async function generateImageWithPollinations(prompt) {
 async function runOcrOnUploadedImage() {
     try {
         addTypingIndicator();
+
+        // Show a quick preview immediately so UI doesn't feel stuck
+        try {
+            const previewUrl = URL.createObjectURL(uploadedFile);
+            addImageBubble(previewUrl, 'OCR input image', 'bot');
+        } catch (_) {}
+
         const base64 = await fileToBase64(uploadedFile);
         const form = new FormData();
         form.append('base64Image', base64);
@@ -1414,17 +1438,65 @@ async function runOcrOnUploadedImage() {
         form.append('OCREngine', '2');
         form.append('apikey', OCR_SPACE_API_KEY);
 
-        const resp = await fetch(OCR_SPACE_URL, { method: 'POST', body: form });
+        // Add a timeout to prevent indefinite loading
+        const controller = new AbortController();
+        const t = setTimeout(() => controller.abort(), 20000);
+        const resp = await fetch(OCR_SPACE_URL, { method: 'POST', body: form, signal: controller.signal });
+        clearTimeout(t);
         const data = await resp.json();
         removeTypingIndicator();
 
         const parsedText = (data && !data.IsErroredOnProcessing && data.ParsedResults && data.ParsedResults[0] && data.ParsedResults[0].ParsedText) || '';
-        const previewUrl = URL.createObjectURL(uploadedFile);
-        addImageBubble(previewUrl, 'OCR input image', 'bot');
         addMessage(parsedText.trim() || 'OCR failed. Please try again later.', 'bot');
     } catch (e) {
         console.error('OCR error:', e);
         removeTypingIndicator();
-        addMessage('Error during OCR. Please try again.', 'bot');
+        const isAbort = (e && (e.name === 'AbortError' || String(e).includes('AbortError')));
+        addMessage(isAbort ? 'OCR timed out. Please try again.' : 'Error during OCR. Please try again.', 'bot');
+    }
+}
+
+// Describe the uploaded image using the existing Gemini endpoint
+async function describeUploadedImage(promptText) {
+    try {
+        addTypingIndicator();
+        const imageDataUrl = await fileToBase64(uploadedFile);
+        const base64 = imageDataUrl.split(',')[1];
+        const requestBody = {
+            contents: [{
+                parts: [
+                    { text: promptText || 'Describe this image.' },
+                    { inlineData: { mimeType: uploadedFile.type, data: base64 } }
+                ]
+            }],
+            generationConfig: {
+                maxOutputTokens: 1024,
+                temperature: 0.7,
+                topP: 0.95,
+                topK: 40,
+                stopSequences: []
+            }
+        };
+
+        // Use same direct key pattern as sendMessage for consistency
+        const DIRECT_API_KEY = 'AIzaSyCw9litrf3O8zjaG3sfm0oVqToUXV6rsKE';
+        const resp = await fetch(`${API_URL}?key=${DIRECT_API_KEY}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody)
+        });
+        const data = await resp.json();
+        removeTypingIndicator();
+
+        const textOut = data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
+        if (textOut && textOut.trim()) {
+            addMessage(textOut, 'bot');
+        } else {
+            addMessage('I could not describe this image. Please try again.', 'bot');
+        }
+    } catch (e) {
+        console.error('Describe error:', e);
+        removeTypingIndicator();
+        addMessage('Error while describing the image. Please try again.', 'bot');
     }
 }
