@@ -438,24 +438,33 @@ const tl = gsap.timeline();
 
 // Enhanced initial animation
 window.addEventListener('load', () => {
-    tl.from('.chat-header', {
-        y: -50,
-        opacity: 0,
-        duration: 0.8,
-        ease: "back.out(1.7)"
-    })
-    .from('.chat-container', {
-        scale: 0.8,
-        opacity: 0,
-        duration: 0.8,
-        ease: "power4.out"
-    }, "-=0.4")
-    .from('.chat-input-container', {
-        y: 50,
-        opacity: 0,
-        duration: 0.8,
-        ease: "back.out(1.7)"
-    }, "-=0.4");
+    const hasHeader = document.querySelector('.chat-header');
+    const hasContainer = document.querySelector('.chat-container');
+    const hasInput = document.querySelector('.chat-input-container');
+    if (hasHeader) {
+        tl.from('.chat-header', {
+            y: -50,
+            opacity: 0,
+            duration: 0.8,
+            ease: "back.out(1.7)"
+        });
+    }
+    if (hasContainer) {
+        tl.from('.chat-container', {
+            scale: 0.8,
+            opacity: 0,
+            duration: 0.8,
+            ease: "power4.out"
+        }, "-=0.4");
+    }
+    if (hasInput) {
+        tl.from('.chat-input-container', {
+            y: 50,
+            opacity: 0,
+            duration: 0.8,
+            ease: "back.out(1.7)"
+        }, "-=0.4");
+    }
 });
 
 // Modify addMessage function to include auto-scroll
@@ -728,6 +737,19 @@ async function loadServerChatToUI(serverId) {
         if (welcomeScreen) welcomeScreen.remove();
         chatMessages.innerHTML = '';
         (chat.messages || []).forEach(m => renderMessageSimple(m.role, m.content, chatMessages));
+
+        // Ensure a local conversation entry exists for this server chat
+        let existing = conversations.find(c => c.id === localId);
+        if (!existing) {
+            conversations.push({
+                id: localId,
+                messages: chatMessages.innerHTML,
+                title: chat.title || 'New chat'
+            });
+        } else {
+            existing.messages = chatMessages.innerHTML;
+            existing.title = existing.title || chat.title || existing.title;
+        }
     } catch (e) {
         console.error('Failed to load server chat:', e);
     }
@@ -767,7 +789,16 @@ function addToChatHistory(text) {
     }
 
     // Add message to current conversation
-    const currentConversation = conversations.find(c => c.id === currentConversationId);
+    let currentConversation = conversations.find(c => c.id === currentConversationId);
+    if (!currentConversation) {
+        // This can happen when continuing a server-loaded chat without a local stub
+        currentConversation = {
+            id: currentConversationId,
+            messages: '',
+            title: text.substring(0, 30) + (text.length > 30 ? '...' : '')
+        };
+        conversations.push(currentConversation);
+    }
     const messages = document.getElementById('chatMessages').innerHTML;
     currentConversation.messages = messages;
 
@@ -1038,14 +1069,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // Check for browser support
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
+    const hasSpeechRecognition = !!SpeechRecognition;
+    if (!hasSpeechRecognition) {
         console.error('Speech recognition not supported');
-        document.querySelector('.mic-btn').style.display = 'none';
-        // Do NOT return early; continue initializing rest of the UI
+        const mic = document.querySelector('.mic-btn');
+        if (mic) mic.style.display = 'none';
     }
 
-    // First request microphone permission
-    try {
+    // Only request microphone permission and init recognition if supported
+    if (hasSpeechRecognition) try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         stream.getTracks().forEach(track => track.stop()); // Stop the stream after getting permission
         
@@ -1091,11 +1123,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
 
         const micButton = document.querySelector('.mic-btn');
-        micButton.addEventListener('click', toggleSpeechRecognition);
+        if (micButton) micButton.addEventListener('click', toggleSpeechRecognition);
 
     } catch (err) {
-        console.error('Microphone permission denied:', err);
-        document.querySelector('.mic-btn').style.display = 'none';
+        console.error('Microphone permission denied or init failed:', err);
+        const mic = document.querySelector('.mic-btn');
+        if (mic) mic.style.display = 'none';
     }
 
     // (Already populated above)
