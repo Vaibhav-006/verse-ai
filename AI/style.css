@@ -189,7 +189,16 @@ body {
     flex-direction: column;
     height: 100vh;
     overflow: hidden;
-    background-color: var(--chat-bg); /* Match with chat background */
+    position: relative;
+    background-color: var(--chat-bg); /* base */
+    /* Move the patterned background here so it stays fixed */
+    background-image:
+        linear-gradient(45deg, var(--primary-color) 25%, transparent 25%),
+        linear-gradient(-45deg, var(--primary-color) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, var(--primary-color) 75%),
+        linear-gradient(-45deg, transparent 75%, var(--primary-color) 75%);
+    background-size: 60px 60px;
+    background-attachment: fixed;
 }
 
 .chat-container {
@@ -197,47 +206,30 @@ body {
     overflow-y: auto;
     padding: 20px;
     position: relative;
+    z-index: 1; /* above .main-content::after */
     background-color: var(--chat-bg);
     /* Remove duplicate padding and margin */
     margin: 0;
 }
 
-/* Update background pattern */
-.chat-container::before {
-    content: '';
-    position: fixed; /* keep background fixed while scrolling */
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    opacity: 0.04;
-    pointer-events: none;
-    background-image: 
-        linear-gradient(45deg, var(--primary-color) 25%, transparent 25%),
-        linear-gradient(-45deg, var(--primary-color) 25%, transparent 25%),
-        linear-gradient(45deg, transparent 75%, var(--primary-color) 75%),
-        linear-gradient(-45deg, transparent 75%, var(--primary-color) 75%);
-    background-size: 60px 60px;
-    background-attachment: fixed; /* ensure fixed attachment */
-    z-index: 0;
-}
+/* Disable chat-container background layers; now handled by .main-content */
+.chat-container::before { content: none; }
 
-/* Update gradient overlay */
-.chat-container::after {
+.chat-container::after { content: none; }
+
+/* Add a fixed, subtle animated overlay at the app level */
+.main-content::after {
     content: '';
-    position: fixed; /* keep overlay fixed while scrolling */
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
     background: linear-gradient(
         120deg,
         transparent,
         rgba(30, 128, 193, 0.08),
         transparent
     );
+    opacity: 0.4;
     background-size: 200% 200%;
-    background-attachment: fixed;
     animation: gradientMove 15s ease infinite;
     pointer-events: none;
     z-index: 0;
