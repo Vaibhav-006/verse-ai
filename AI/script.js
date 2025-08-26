@@ -71,6 +71,9 @@ let currentMessageTl = null;
 
 // Add these variables at the top
 let currentConversationId = null;
+// Map local conversation -> server chat id (when logged in)
+const serverChatIdByLocalId = new Map();
+const localIdByServerId = new Map();
 
 // Add these variables at the top
 let uploadedFile = null;
@@ -371,6 +374,19 @@ async function sendMessage() {
         if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
             const fullResponse = data.candidates[0].content.parts[0].text;
             addMessage(fullResponse, 'bot');
+            // Persist to backend if logged in
+            try {
+                const localId = currentConversationId;
+                // Create server chat on first user message
+                await ensureServerChatForCurrent(messageText);
+                if (serverChatIdByLocalId.has(localId)) {
+                    // Append user then bot
+                    await appendMessageToServer(localId, 'user', messageText);
+                    await appendMessageToServer(localId, 'bot', fullResponse);
+                }
+            } catch (e) {
+                console.warn('Persist chat failed:', e.message);
+            }
         } else if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.inlineData) {
             // fallback if text is not present
             addMessage('[Received non-text content from model]', 'bot');
@@ -582,6 +598,130 @@ function addMessage(text, sender) {
 // Store chat conversations
 let conversations = [];
 
+// ---- Auth/Chat backend helpers ----
+function getAuthToken() {
+    try { return localStorage.getItem('token'); } catch (_) { return null; }
+}
+
+async function apiFetch(path, options = {}) {
+    const headers = Object.assign({ 'Content-Type': 'application/json' }, options.headers || {});
+    const token = getAuthToken();
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${BACKEND_BASE}${path}`, { ...options, headers });
+    if (!res.ok) {
+        const msg = await res.text().catch(() => '');
+        throw new Error(`API ${path} ${res.status}: ${msg.slice(0,200)}`);
+    }
+    const ct = res.headers.get('content-type') || '';
+    return ct.includes('application/json') ? res.json() : res.text();
+}
+
+async function ensureServerChatForCurrent(titleHint) {
+    const token = getAuthToken();
+    if (!token) return null;
+    if (!currentConversationId) return null;
+    if (serverChatIdByLocalId.has(currentConversationId)) return serverChatIdByLocalId.get(currentConversationId);
+    const body = { title: (titleHint || 'New chat').slice(0, 60) };
+    const data = await apiFetch('/api/chats', { method: 'POST', body: JSON.stringify(body) });
+    const serverId = data?.chat?._id;
+    if (serverId) {
+        serverChatIdByLocalId.set(currentConversationId, serverId);
+        localIdByServerId.set(serverId, currentConversationId);
+        // mark sidebar item if exists
+        const item = document.querySelector(`.chat-history-item[data-id="${currentConversationId}"]`);
+        if (item) item.dataset.serverId = serverId;
+    }
+    return serverId;
+}
+
+async function appendMessageToServer(localConvId, role, content) {
+    const token = getAuthToken();
+    if (!token) return;
+    const serverId = serverChatIdByLocalId.get(localConvId);
+    if (!serverId) return;
+    await apiFetch(`/api/chats/${serverId}/messages`, { method: 'POST', body: JSON.stringify({ role, content }) });
+}
+
+async function fetchChatsList() {
+    const token = getAuthToken();
+    if (!token) return [];
+    const data = await apiFetch('/api/chats', { method: 'GET' });
+    return data?.chats || [];
+}
+
+async function fetchChat(serverId) {
+    const token = getAuthToken();
+    if (!token) throw new Error('Not logged in');
+    const data = await apiFetch(`/api/chats/${serverId}`, { method: 'GET' });
+    return data?.chat;
+}
+
+function renderMessageSimple(role, text, container) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${role}-message`;
+    if (role === 'bot') {
+        const avatar = document.createElement('div');
+        avatar.className = 'bot-avatar';
+        avatar.innerHTML = '<i class="fas fa-robot"></i>';
+        messageDiv.appendChild(avatar);
+    }
+    const content = document.createElement('div');
+    content.className = 'message-content';
+    content.textContent = text;
+    messageDiv.appendChild(content);
+    container.appendChild(messageDiv);
+}
+
+async function loadServerChatToUI(serverId) {
+    try {
+        const chat = await fetchChat(serverId);
+        if (!chat) return;
+        let localId = localIdByServerId.get(serverId);
+        if (!localId) {
+            // create a local shadow conversation id and mapping
+            localId = Date.now();
+            localIdByServerId.set(serverId, localId);
+            serverChatIdByLocalId.set(localId, serverId);
+        }
+        currentConversationId = localId;
+
+        // Update sidebar active state
+        document.querySelectorAll('.chat-history-item').forEach(i => i.classList.remove('active'));
+        const item = document.querySelector(`.chat-history-item[data-server-id="${serverId}"]`);
+        if (item) item.classList.add('active');
+
+        // Render messages
+        const chatMessages = document.getElementById('chatMessages');
+        const welcomeScreen = document.getElementById('welcomeScreen');
+        if (welcomeScreen) welcomeScreen.remove();
+        chatMessages.innerHTML = '';
+        (chat.messages || []).forEach(m => renderMessageSimple(m.role, m.content, chatMessages));
+    } catch (e) {
+        console.error('Failed to load server chat:', e);
+    }
+}
+
+async function populateServerChatsSidebar() {
+    try {
+        const chats = await fetchChatsList();
+        const sidebar = document.querySelector('.chat-history');
+        if (!sidebar) return;
+        // Do not clear locally created items; prepend server items
+        chats.forEach(chat => {
+            // Skip if already present
+            if (document.querySelector(`.chat-history-item[data-server-id="${chat._id}"]`)) return;
+            const div = document.createElement('div');
+            div.className = 'chat-history-item';
+            div.dataset.serverId = chat._id;
+            div.innerHTML = `<i class="fas fa-message"></i><span>${chat.title || 'New chat'}</span>`;
+            div.addEventListener('click', () => loadServerChatToUI(chat._id));
+            sidebar.prepend(div);
+        });
+    } catch (e) {
+        // silent
+    }
+}
+
 // Modify addToChatHistory function
 function addToChatHistory(text) {
     // Create new conversation if none exists
@@ -614,8 +754,11 @@ function addToChatHistory(text) {
             item.classList.remove('active');
         });
         
-        // Add click handler to switch conversations
+        // Add click handler to switch conversations (local)
         historyDiv.addEventListener('click', () => {
+            // If this item is linked to a server chat, load from server
+            const serverId = historyDiv.dataset.serverId;
+            if (serverId) return loadServerChatToUI(serverId);
             switchConversation(currentConversationId);
         });
         
@@ -919,6 +1062,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error('Microphone permission denied:', err);
         document.querySelector('.mic-btn').style.display = 'none';
     }
+
+    // Show server chats in sidebar if logged in
+    try { await populateServerChatsSidebar(); } catch (_) {}
 
     // Handle placeholder text for different screen sizes
     const updatePlaceholder = () => {

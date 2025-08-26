@@ -11,6 +11,7 @@ import profileRoutes from './routes/profile.js';
 import { connectMongo } from './db/mongo.js';
 import configRoutes from './routes/config.js';
 import aiRoutes from './routes/ai.js';
+import chatRoutes from './routes/chat.js';
 
 dotenv.config();
 
@@ -65,6 +66,7 @@ app.use('/', authRoutes); // /signup, /login
 app.use('/api/profile', profileRoutes); // /update, /avatar
 app.use('/config', configRoutes); // /gemini-key
 app.use('/ai', aiRoutes); // /generate
+app.use('/api/chats', chatRoutes); // chat history
 
 // 404 handler
 app.use((req, res) => {
