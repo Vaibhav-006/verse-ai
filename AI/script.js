@@ -1,6 +1,6 @@
 // Gemini API Key is provided by the backend
 console.log('VerseAI AI script version: v20250826-1919');
-let API_KEY = null;
+let API_KEY = 'AIzaSyBLtiBnsRgy4TqUyMbGKdB_5-yF5ZMQHh4';
 const BACKEND_BASE = 'https://verse-ai.onrender.com';
 // Use a widely available stable model; 2.0 endpoints can be rolled out gradually
 const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
