@@ -634,7 +634,7 @@ document.head.appendChild(style);
 document.addEventListener('DOMContentLoaded', () => {
   const loginBtn = document.querySelector('.auth-btn.login-btn');
   const signupBtn = document.querySelector('.auth-btn.signup-btn');
-  const profileLink = document.querySelector('a[href="profile/index.html"]');
+  const profileLink = document.querySelector('a[href="profile/profile.html"]');
   const navRight = document.querySelector('#nav .nav-right');
 
   function ensureLogoutButton() {
