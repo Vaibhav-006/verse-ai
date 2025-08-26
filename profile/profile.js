@@ -1,3 +1,6 @@
+// Backend base URL
+const BACKEND_BASE = 'https://verse-ai.onrender.com';
+
 // Initialize Three.js background
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -71,29 +74,47 @@ tl.from('.sidebar', {
     ease: 'power3.out'
 }, '-=0.5');
 
-// Simulate loading user data
+// Default placeholder data (stats/activities can be wired later)
 const userData = {
     name: 'John Doe',
     role: 'Premium Member',
-    stats: {
-        chats: 247,
-        hours: 42,
-        rating: 4.8
-    },
+    stats: { chats: 247, hours: 42, rating: 4.8 },
     activities: [
-        {
-            type: 'chat',
-            title: 'AI Chat Session',
-            time: '2 hours ago'
-        },
-        {
-            type: 'achievement',
-            title: 'Reached 200+ chats',
-            time: '1 day ago'
-        }
-        // Add more activities as needed
+        { type: 'chat', title: 'AI Chat Session', time: '2 hours ago' },
+        { type: 'achievement', title: 'Reached 200+ chats', time: '1 day ago' }
     ]
 };
+
+// Load actual user profile from backend
+document.addEventListener('DOMContentLoaded', async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+        // If not logged in, redirect to home/login
+        window.location.href = '../index.html';
+        return;
+    }
+    try {
+        const res = await fetch(`${BACKEND_BASE}/api/profile/me`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+            const data = await res.json();
+            // Update UI
+            if (data.name) {
+                userData.name = data.name;
+                const nameEl = document.getElementById('userName');
+                if (nameEl) nameEl.textContent = data.name;
+            }
+            if (data.avatar) {
+                const avatarEl = document.getElementById('userAvatar');
+                if (avatarEl) avatarEl.src = data.avatar;
+            }
+            // Optionally update role from backend in future
+        }
+    } catch (err) {
+        console.warn('Failed to fetch profile for overview:', err);
+    }
+});
 
 // Animate stats counting
 gsap.to('#chatCount', {

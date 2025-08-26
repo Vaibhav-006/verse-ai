@@ -2,12 +2,32 @@
 const BACKEND_BASE = 'https://verse-ai.onrender.com';
 
 // Require auth token on profile page
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     const token = localStorage.getItem('token');
     if (!token) {
         // Not logged in, redirect to login
         window.location.href = '../login.html';
         return;
+    }
+
+    // Load current profile from backend
+    try {
+        const res = await fetch(`${BACKEND_BASE}/api/profile/me`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+            const data = await res.json();
+            // Populate form fields
+            if (data.name) document.getElementById('fullName').value = data.name;
+            if (data.email) document.getElementById('email').value = data.email;
+            if (document.getElementById('location')) document.getElementById('location').value = '';
+            if (data.bio !== undefined) document.getElementById('bio').value = data.bio || '';
+            // Heading and avatar
+            if (data.name) document.getElementById('userName').textContent = data.name;
+            if (data.avatar) document.getElementById('avatarImg').src = data.avatar;
+        }
+    } catch (e) {
+        console.warn('Failed to load profile:', e);
     }
 });
 const scene = new THREE.Scene();
@@ -144,11 +164,11 @@ document.getElementById('avatarUpload').addEventListener('change', async (e) => 
                 
                 // Show success or error notification
                 const notification = document.getElementById('notification');
-                const notificationMessage = document.getElementById('notificationMessage');
+                const notificationMessage = notification ? notification.querySelector('.notification-message') : null;
                 
 
                 if (response.ok) {
-                    notificationMessage.textContent = 'Avatar uploaded successfully!';
+                    if (notificationMessage) notificationMessage.textContent = 'Avatar uploaded successfully!';
                     notification.classList.remove('error');
                     notification.classList.add('show');
                     
@@ -160,7 +180,7 @@ document.getElementById('avatarUpload').addEventListener('change', async (e) => 
                         repeat: 1
                     });
                 } else {
-                    notificationMessage.textContent = data.error || 'Error uploading avatar!';
+                    if (notificationMessage) notificationMessage.textContent = data.error || 'Error uploading avatar!';
                     notification.classList.add('error');
                     notification.classList.add('show');
                 }
@@ -175,8 +195,8 @@ document.getElementById('avatarUpload').addEventListener('change', async (e) => 
 
                 // Show error notification
                 const notification = document.getElementById('notification');
-                const notificationMessage = document.getElementById('notificationMessage');
-                notificationMessage.textContent = 'Error uploading avatar. Please try again.';
+                const notificationMessage = notification ? notification.querySelector('.notification-message') : null;
+                if (notificationMessage) notificationMessage.textContent = 'Error uploading avatar. Please try again.';
                 notification.classList.add('error');
                 notification.classList.add('show');
 
@@ -526,8 +546,21 @@ document.getElementById('profileForm').addEventListener('submit', async (e) => {
     saveButton.textContent = 'Saving...';
 
     try {
-        // Save to localStorage
-        localStorage.setItem('userProfile', JSON.stringify(formData));
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${BACKEND_BASE}/api/profile/update`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify({
+                name: formData.fullName,
+                email: formData.email,
+                bio: formData.bio
+            })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || data.message || 'Failed to update');
 
         // Show success notification
         showNotification('success', 'Profile updated successfully!');
@@ -535,11 +568,11 @@ document.getElementById('profileForm').addEventListener('submit', async (e) => {
         // Redirect after success
         setTimeout(() => {
             window.location.href = 'profile.html';
-        }, 1500);
+        }, 1200);
 
     } catch (error) {
         console.error('Error:', error);
-        showNotification('error', 'Error saving changes. Please try again.');
+        showNotification('error', error.message || 'Error saving changes. Please try again.');
     } finally {
         // Remove loading state
         saveButton.disabled = false;
@@ -551,22 +584,13 @@ document.getElementById('profileForm').addEventListener('submit', async (e) => {
 document.addEventListener('DOMContentLoaded', () => {
     const requiredFields = ['fullName', 'email', 'location'];
     requiredFields.forEach(field => {
-        const label = document.querySelector(`label[for="${field}"]`);
-        if (label) {
-            label.classList.add('required-field');
+        const input = document.getElementById(field);
+        if (!input) return;
+        // Find the nearest label within the same form-group
+        const formGroup = input.closest('.form-group');
+        const label = formGroup ? formGroup.querySelector('label') : document.querySelector(`label[for="${field}"]`);
+        if (label && !label.querySelector('.req')) {
+            label.innerHTML = `${label.textContent} <span class="req" style="color:#ff5a5f">*</span>`;
         }
     });
-
-    // Load saved profile data if it exists
-    const savedProfile = localStorage.getItem('userProfile');
-    if (savedProfile) {
-        const profileData = JSON.parse(savedProfile);
-        document.getElementById('fullName').value = profileData.fullName || '';
-        document.getElementById('email').value = profileData.email || '';
-        document.getElementById('location').value = profileData.location || '';
-        document.getElementById('bio').value = profileData.bio || '';
-        
-        // Update preview elements
-        document.getElementById('userName').textContent = profileData.fullName || 'John Doe';
-    }
 });
