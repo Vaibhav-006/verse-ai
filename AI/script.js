@@ -1,7 +1,8 @@
 // Gemini API Key is provided by the backend
 let API_KEY = null;
 const BACKEND_BASE = 'https://verse-ai.onrender.com';
-const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+// Use a widely available stable model; 2.0 endpoints can be rolled out gradually
+const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
 
 let isDarkMode = true; // Set dark mode as default
 document.body.setAttribute('data-theme', 'dark'); // Set dark theme by default
@@ -327,11 +328,11 @@ async function sendMessage() {
                 parts: []
             }],
             generationConfig: {
-                maxOutputTokens: 32768, // Increase token limit for longer responses
+                maxOutputTokens: 2048,
                 temperature: 0.7,
                 topP: 0.95,
                 topK: 40,
-                stopSequences: [] // Remove any stop sequences
+                stopSequences: []
             }
         };
 
@@ -354,15 +355,28 @@ async function sendMessage() {
             body: JSON.stringify(requestBody)
         });
 
-        const data = await response.json();
+        if (!response.ok) {
+            const errText = await response.text().catch(() => '');
+            throw new Error(`Gemini API error ${response.status}: ${errText.slice(0, 400)}`);
+        }
+
+        const data = await response.json().catch(async () => {
+            const txt = await response.text();
+            throw new Error(`Gemini non-JSON response: ${txt.slice(0, 400)}`);
+        });
         
         removeTypingIndicator();
 
-        if (data.candidates && data.candidates[0].content.parts[0].text) {
+        if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
             const fullResponse = data.candidates[0].content.parts[0].text;
             addMessage(fullResponse, 'bot');
+        } else if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.inlineData) {
+            // fallback if text is not present
+            addMessage('[Received non-text content from model]', 'bot');
+        } else if (data.error) {
+            throw new Error(`Gemini API returned error: ${data.error.message || JSON.stringify(data.error)}`);
         } else {
-            throw new Error('Invalid response format');
+            throw new Error('Invalid response format from Gemini');
         }
 
     } catch (error) {
