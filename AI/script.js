@@ -1,6 +1,7 @@
 // Gemini API Key is provided by the backend
 console.log('VerseAI AI script version: v20250826-1919');
-let API_KEY = 'AIzaSyBLtiBnsRgy4TqUyMbGKdB_5-yF5ZMQHh4';
+// Leave empty so getApiKey() fetches a valid key from backend at runtime
+let API_KEY = '';
 const BACKEND_BASE = 'https://verse-ai.onrender.com';
 // Use a widely available stable model; 2.0 endpoints can be rolled out gradually
 const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
@@ -86,11 +87,16 @@ function hideCommandHint() {
         onComplete: () => commandHintEl.classList.add('hidden')
     });
 }
-// Dismiss when user starts typing or focuses the input
+// Dismiss when user starts typing
 if (textarea) {
     textarea.addEventListener('input', hideCommandHint);
-    textarea.addEventListener('focus', hideCommandHint);
 }
+// Dismiss when clicking outside the hint/input area
+document.addEventListener('click', (e) => {
+    const withinHint = commandHintEl && commandHintEl.contains(e.target);
+    const withinInput = e.target.closest && !!e.target.closest('.input-wrap');
+    if (!withinHint && !withinInput) hideCommandHint();
+}, { capture: true });
 // Handle hint chip clicks: insert command into input
 if (commandHintEl) {
     commandHintEl.addEventListener('click', (e) => {
@@ -279,16 +285,20 @@ async function handleFileUpload(event) {
             uploadedFile = file;
             fileContent = await fileToBase64(file);
             showUploadSuccess('Image uploaded successfully. You can now ask questions about it.');
+            // Re-show quick command hint after successful upload
+            showCommandHint();
         } else if (file.type === 'application/pdf') {
             const text = await extractPDFText(file);
             uploadedFile = file;
             fileContent = text;
             showUploadSuccess('PDF uploaded successfully. You can now ask questions about it.');
+            showCommandHint();
         } else if (file.type === 'text/plain') {
             const text = await file.text();
             uploadedFile = file;
             fileContent = text;
             showUploadSuccess('Text file uploaded successfully. You can now ask questions about it.');
+            showCommandHint();
         } else {
             showUploadError('Unsupported file type. Please upload an image, PDF, or text file.');
             removeUploadedFile();
@@ -351,6 +361,8 @@ function removeUploadedFile() {
     setTimeout(() => {
         filePreview.style.display = 'none';
         filePreview.innerHTML = '';
+        // After clearing preview, reshow quick command hint for guidance
+        showCommandHint();
     }, 300); // Wait for transition to complete
 }
 
@@ -416,13 +428,16 @@ async function sendMessage() {
     try {
         addTypingIndicator();
 
+        // Detect if the user is asking for code to keep outputs concise
+        const isCodeIntent = /\b(code|implement|function|class|algorithm|write.*code)\b|\b(in\s+(python|js|javascript|java|c\+\+|c#|go|rust))\b|^\s*(generate|write)\s+(a\s+)?code/i.test(userInput);
+
         const requestBody = {
             contents: [{
                 parts: []
             }],
             generationConfig: {
-                maxOutputTokens: 2048,
-                temperature: 0.7,
+                maxOutputTokens: isCodeIntent ? 512 : 2048,
+                temperature: isCodeIntent ? 0.2 : 0.7,
                 topP: 0.95,
                 topK: 40,
                 stopSequences: []
@@ -431,6 +446,11 @@ async function sendMessage() {
 
         // Add text content with proper formatting
         let textContent = userInput || '';
+        if (isCodeIntent) {
+            // Nudge model to return a single concise solution
+            const instruction = 'Return only one best solution in a single code block. No alternatives, no long explanations. Keep comments minimal.';
+            textContent = `${instruction}\n\n${textContent}`;
+        }
         if (fileContent && !uploadedFile?.type.startsWith('image/')) {
             textContent += `\n\nFile content:\n${fileContent}`;
         }
@@ -439,11 +459,10 @@ async function sendMessage() {
             text: textContent
         });
 
-        // Direct client-side call to Google Gemini with provided API key
-        // NOTE: This exposes the key to the client. Ensure referrer restrictions are set on the key.
-        const DIRECT_API_KEY = 'AIzaSyCw9litrf3O8zjaG3sfm0oVqToUXV6rsKE';
+        // Direct client-side call to Google Gemini using backend-provided key
+        const KEY = await getApiKey();
         let data;
-        const response = await fetch(`${API_URL}?key=${DIRECT_API_KEY}`, {
+        const response = await fetch(`${API_URL}?key=${KEY}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(requestBody)
@@ -461,7 +480,12 @@ async function sendMessage() {
         removeTypingIndicator();
 
         if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
-            const fullResponse = data.candidates[0].content.parts[0].text;
+            let fullResponse = data.candidates[0].content.parts[0].text;
+            // For code intents, keep only the first code block if present to avoid verbose multi-option outputs
+            if (isCodeIntent) {
+                const m = fullResponse.match(/```[\s\S]*?```/);
+                if (m) fullResponse = m[0];
+            }
             addMessage(fullResponse, 'bot');
             // Persist bot response if logged in
             try {
@@ -484,10 +508,7 @@ async function sendMessage() {
     } catch (error) {
         console.error('Error:', error);
         removeTypingIndicator();
-        const msg =
-          error && String(error).includes('Gemini')
-            ? 'Gemini is not configured. Please try again later.'
-            : 'Sorry, I encountered an error. Please try again.';
+        const msg = 'The service is busy or unavailable. Please try again in a moment.';
         addMessage(msg, 'bot');
     }
 }
@@ -1536,8 +1557,15 @@ async function handleCommands(inputText) {
 async function generateImageWithPollinations(prompt) {
     const encoded = encodeURIComponent(prompt);
     const url = `${POLLINATIONS_BASE}${encoded}?nologo=true&enhance=true&model=flux&aspect=1:1`;
-    addMessage(`Generating image for: ${prompt}`, 'bot');
+    // Show a typing indicator instead of a separate bot text to avoid duplication
+    try {
+        addTypingIndicator();
+    } catch (_) {}
+    // Render the generated image with a single caption (the prompt)
     addImageBubble(url, prompt, 'bot');
+    try {
+        removeTypingIndicator();
+    } catch (_) {}
 }
 
 async function runOcrOnUploadedImage() {

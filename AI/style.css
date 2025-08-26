@@ -16,6 +16,7 @@
 /* --- Command hint popup --- */
 .input-wrap {
     position: relative;
+    z-index: 10001; /* ensure above chat area */
     width: 100%;
     max-width: 880px; /* match input width */
     margin: 0 auto;
@@ -32,7 +33,7 @@
     border-radius: 12px;
     padding: 12px 14px;
     box-shadow: 0 8px 24px rgba(0,0,0,0.15);
-    z-index: 5;
+    z-index: 10002; /* above .file-preview (9999) and other UI */
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -256,7 +257,7 @@ body {
     display: flex;
     flex-direction: column;
     height: 100vh;
-    overflow: hidden;
+    overflow: visible; /* allow hint popup to extend above input */
     position: relative;
     background-color: var(--chat-bg); /* base */
     /* Move the patterned background here so it stays fixed */
@@ -431,6 +432,7 @@ body {
     border-top: 1px solid var(--border-color);
     padding: 20px; /* match .sidebar-footer padding for alignment */
     position: relative;
+    z-index: 10000; /* Above .chat-container and other content */
     margin: 0;
     display: flex;
     align-items: center;
