@@ -1609,6 +1609,12 @@ async function describeUploadedImage(promptText) {
         });
         const data = await resp.json();
         removeTypingIndicator();
+        const textOut = data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
+        if (textOut && textOut.trim()) {
+            addMessage(textOut, 'bot');
+        } else {
+            addMessage('I could not describe this image. Please try again.', 'bot');
+        }
 
     }catch (e) {
         console.error('Describe error:', e);
