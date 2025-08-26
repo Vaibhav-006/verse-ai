@@ -675,4 +675,129 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Initialize state
   toggleAuthUI();
+
+  // --- Auth Modal integration ---
+  const BACKEND_BASE = 'https://verse-ai.onrender.com';
+
+  const backdrop = document.getElementById('auth-backdrop');
+  const closeBtn = document.getElementById('auth-close');
+  const tabLogin = document.getElementById('tab-login');
+  const tabSignup = document.getElementById('tab-signup');
+  const formLogin = document.getElementById('auth-login');
+  const formSignup = document.getElementById('auth-signup');
+  const loginEmail = document.getElementById('login-email');
+  const loginPassword = document.getElementById('login-password');
+  const signupName = document.getElementById('signup-name');
+  const signupEmail = document.getElementById('signup-email');
+  const signupPassword = document.getElementById('signup-password');
+  const loginSubmit = document.getElementById('login-submit');
+  const signupSubmit = document.getElementById('signup-submit');
+  const loginMsg = document.getElementById('login-msg');
+  const signupMsg = document.getElementById('signup-msg');
+
+  function openAuth(mode = 'login') {
+    if (!backdrop) return;
+    backdrop.style.display = 'flex';
+    switchTab(mode);
+    // small animation with GSAP if available
+    if (window.gsap) {
+      gsap.fromTo('.auth-modal', { y: -20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.25, ease: 'power2.out' });
+    }
+    if (mode === 'login' && loginEmail) loginEmail.focus();
+    if (mode === 'signup' && signupName) signupName.focus();
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeAuth() {
+    if (!backdrop) return;
+    backdrop.style.display = 'none';
+    document.body.style.overflow = '';
+    // clear messages
+    if (loginMsg) loginMsg.textContent = '';
+    if (signupMsg) signupMsg.textContent = '';
+  }
+
+  function switchTab(mode) {
+    if (!tabLogin || !tabSignup || !formLogin || !formSignup) return;
+    const isLogin = mode === 'login';
+    tabLogin.classList.toggle('active', isLogin);
+    tabSignup.classList.toggle('active', !isLogin);
+    formLogin.classList.toggle('hidden', !isLogin);
+    formSignup.classList.toggle('hidden', isLogin);
+  }
+
+  // Open buttons
+  if (loginBtn) loginBtn.addEventListener('click', () => openAuth('login'));
+  if (signupBtn) signupBtn.addEventListener('click', () => openAuth('signup'));
+  // Close actions
+  if (closeBtn) closeBtn.addEventListener('click', closeAuth);
+  if (backdrop) backdrop.addEventListener('click', (e) => { if (e.target === backdrop) closeAuth(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && backdrop && backdrop.style.display === 'flex') closeAuth(); });
+  // Tab switching
+  if (tabLogin) tabLogin.addEventListener('click', () => switchTab('login'));
+  if (tabSignup) tabSignup.addEventListener('click', () => switchTab('signup'));
+
+  // Helpers
+  function setMsg(el, text, ok = false) {
+    if (!el) return;
+    el.textContent = text || '';
+    el.style.color = ok ? '#6bffb0' : '#ff6b6b';
+  }
+
+  // Submit handlers
+  if (formLogin) {
+    formLogin.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!loginEmail || !loginPassword || !loginSubmit) return;
+      setMsg(loginMsg, '');
+      loginSubmit.disabled = true;
+      const old = loginSubmit.textContent;
+      loginSubmit.textContent = 'Logging in...';
+      try {
+        const res = await fetch(`${BACKEND_BASE}/login`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: loginEmail.value, password: loginPassword.value })
+        });
+        const data = await res.json().catch(() => ({ message: 'Unexpected response' }));
+        if (!res.ok) { setMsg(loginMsg, data.message || 'Login failed'); return; }
+        // success
+        setMsg(loginMsg, data.message || 'Login successful', true);
+        if (data.token) localStorage.setItem('token', data.token);
+        toggleAuthUI();
+        setTimeout(closeAuth, 400);
+      } catch (_) {
+        setMsg(loginMsg, 'Network error. Please try again.');
+      } finally {
+        loginSubmit.disabled = false;
+        loginSubmit.textContent = old;
+      }
+    });
+  }
+
+  if (formSignup) {
+    formSignup.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!signupName || !signupEmail || !signupPassword || !signupSubmit) return;
+      setMsg(signupMsg, '');
+      signupSubmit.disabled = true;
+      const old = signupSubmit.textContent;
+      signupSubmit.textContent = 'Signing up...';
+      try {
+        const res = await fetch(`${BACKEND_BASE}/signup`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: signupName.value, email: signupEmail.value, password: signupPassword.value })
+        });
+        const data = await res.json().catch(() => ({ message: 'Unexpected response' }));
+        if (!res.ok) { setMsg(signupMsg, data.message || 'Signup failed'); return; }
+        setMsg(signupMsg, data.message || 'Signup successful. You can log in now.', true);
+        // Switch to login tab after a brief pause
+        setTimeout(() => { switchTab('login'); if (loginEmail) loginEmail.focus(); }, 600);
+      } catch (_) {
+        setMsg(signupMsg, 'Network error. Please try again.');
+      } finally {
+        signupSubmit.disabled = false;
+        signupSubmit.textContent = old;
+      }
+    });
+  }
 });
