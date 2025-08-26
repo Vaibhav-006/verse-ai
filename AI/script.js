@@ -320,6 +320,22 @@ async function sendMessage() {
     
     // Add user message without the "Analyzing" text
     addMessage(messageText, 'user');
+
+    // Persist user message immediately if logged in
+    let createdServerChat = false;
+    try {
+        const beforeId = currentConversationId;
+        const maybeId = await ensureServerChatForCurrent(messageText);
+        if (maybeId) {
+            createdServerChat = true;
+            // Save the user message right away
+            await appendMessageToServer(beforeId, 'user', messageText);
+            // If a new server chat was created, refresh sidebar to show it
+            if (createdServerChat) { try { await populateServerChatsSidebar(); } catch (_) {} }
+        }
+    } catch (e) {
+        console.warn('Persist user message failed:', e.message);
+    }
     
     textarea.value = '';
     textarea.style.height = 'auto';
@@ -374,14 +390,10 @@ async function sendMessage() {
         if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
             const fullResponse = data.candidates[0].content.parts[0].text;
             addMessage(fullResponse, 'bot');
-            // Persist to backend if logged in
+            // Persist bot response if logged in
             try {
                 const localId = currentConversationId;
-                // Create server chat on first user message
-                await ensureServerChatForCurrent(messageText);
                 if (serverChatIdByLocalId.has(localId)) {
-                    // Append user then bot
-                    await appendMessageToServer(localId, 'user', messageText);
                     await appendMessageToServer(localId, 'bot', fullResponse);
                 }
             } catch (e) {
