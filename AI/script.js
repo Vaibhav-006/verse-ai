@@ -319,6 +319,12 @@ function showUploadError(message) {
 async function sendMessage() {
     const userInput = textarea.value.trim();
     if (!userInput && !fileContent) return;
+    // Prevent overlapping sends which can cause stuck state
+    if (isTyping) {
+        try { removeTypingIndicator(); } catch (_) {}
+        if (currentMessageTl) { try { currentMessageTl.progress(1); } catch (_) {} }
+        isTyping = false;
+    }
 
     // Add user message to chat with file context
     let messageText = userInput || '';
@@ -382,12 +388,14 @@ async function sendMessage() {
         });
         const respText = await response.text();
         if (!response.ok) {
-            throw new Error(`Gemini API error ${response.status}: ${respText.slice(0, 400)}`);
+            console.error('Gemini error status/body:', response.status, respText.slice(0, 400));
+            throw new Error(`Gemini API error ${response.status}: ${respText.slice(0, 200)}`);
         }
         try {
             data = JSON.parse(respText);
         } catch (e) {
-            throw new Error(`Gemini non-JSON response: ${respText.slice(0, 400)}`);
+            console.error('Gemini non-JSON:', respText.slice(0, 400));
+            throw new Error(`Gemini non-JSON response`);
         }
         
         removeTypingIndicator();
@@ -408,17 +416,18 @@ async function sendMessage() {
             // fallback if text is not present
             addMessage('[Received non-text content from model]', 'bot');
         } else if (data.error) {
-            throw new Error(`Gemini API returned error: ${data.error.message || JSON.stringify(data.error)}`);
+            throw new Error(`Gemini API returned error: ${data.error.message || JSON.stringify(data.error).slice(0, 200)}`);
         } else {
             throw new Error('Invalid response format from Gemini');
         }
 
     } catch (error) {
-        console.error('Error:', error);
+        console.error('sendMessage failed:', error);
         removeTypingIndicator();
+        isTyping = false;
         const msg =
           error && String(error).includes('Gemini')
-            ? 'Gemini is not configured. Please try again later.'
+            ? 'I could not reach Gemini right now. Please try again in a moment.'
             : 'Sorry, I encountered an error. Please try again.';
         addMessage(msg, 'bot');
     }
@@ -691,6 +700,12 @@ function renderMessageSimple(role, text, container) {
 
 async function loadServerChatToUI(serverId) {
     try {
+        // Reset any ongoing typing/speaking state before switching
+        try { removeTypingIndicator(); } catch (_) {}
+        if (currentMessageTl) { try { currentMessageTl.progress(1); } catch (_) {} }
+        stopSpeaking();
+        isTyping = false;
+
         const chat = await fetchChat(serverId);
         if (!chat) return;
         let localId = localIdByServerId.get(serverId);

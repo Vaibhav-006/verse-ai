@@ -205,7 +205,7 @@ body {
 /* Update background pattern */
 .chat-container::before {
     content: '';
-    position: absolute;
+    position: fixed; /* keep background fixed while scrolling */
     top: 0;
     left: 0;
     right: 0;
@@ -218,13 +218,14 @@ body {
         linear-gradient(45deg, transparent 75%, var(--primary-color) 75%),
         linear-gradient(-45deg, transparent 75%, var(--primary-color) 75%);
     background-size: 60px 60px;
+    background-attachment: fixed; /* ensure fixed attachment */
     z-index: 0;
 }
 
 /* Update gradient overlay */
 .chat-container::after {
     content: '';
-    position: absolute;
+    position: fixed; /* keep overlay fixed while scrolling */
     top: 0;
     left: 0;
     right: 0;
