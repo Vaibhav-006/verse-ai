@@ -1280,3 +1280,9 @@ textarea {
     gap: 16px;
     padding: 20px;
 }
+
+.message-content img {
+    max-width: 320px;
+    width: 100%;
+    height: auto;
+}
