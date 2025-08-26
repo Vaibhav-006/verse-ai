@@ -20,11 +20,38 @@ const app = express();
 
 // Config
 const PORT = process.env.PORT || 4000;
-const ALLOWED_ORIGIN = process.env.CORS_ORIGIN || '*';
+const RAW_ALLOWED_ORIGIN = process.env.CORS_ORIGIN || '*';
+
+function normalizeOrigin(o) {
+  if (!o) return o;
+  try {
+    // remove trailing slash
+    return o.replace(/\/$/, '');
+  } catch (_) {
+    return o;
+  }
+}
+
+// Support comma-separated origins in env
+const allowedOrigins = RAW_ALLOWED_ORIGIN === '*'
+  ? '*'
+  : RAW_ALLOWED_ORIGIN.split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
+      .map(normalizeOrigin);
 
 // Middleware
 app.use(helmet());
-app.use(cors({ origin: ALLOWED_ORIGIN, credentials: true }));
+app.use(cors({
+  origin: function(origin, callback) {
+    if (!origin) return callback(null, true); // allow non-browser or same-origin
+    if (allowedOrigins === '*') return callback(null, true);
+    const normalized = normalizeOrigin(origin);
+    if (allowedOrigins.includes(normalized)) return callback(null, true);
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
+  credentials: true,
+}));
 app.use(express.json({ limit: '5mb' }));
 app.use(morgan('dev'));
 

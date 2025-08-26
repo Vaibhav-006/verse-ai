@@ -82,9 +82,20 @@ let isListening = false;
 async function getApiKey() {
     if (API_KEY) return API_KEY;
     try {
-        const res = await fetch(`${BACKEND_BASE}/config/gemini-key`);
+        const res = await fetch(`${BACKEND_BASE}/config/gemini-key`, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' },
+            cache: 'no-store',
+            mode: 'cors',
+        });
         if (!res.ok) {
-            throw new Error(`Key endpoint error: ${res.status}`);
+            const text = await res.text().catch(() => '');
+            throw new Error(`Key endpoint error: ${res.status} ${text?.slice(0, 120)}`);
+        }
+        const ct = res.headers.get('content-type') || '';
+        if (!ct.includes('application/json')) {
+            const text = await res.text();
+            throw new Error(`Non-JSON key response: ${text.slice(0, 120)}`);
         }
         const data = await res.json();
         if (!data || !data.key) {
