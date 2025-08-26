@@ -257,6 +257,11 @@ function fileToBase64(file) {
 
 // Add file handling function
 async function handleFileUpload(event) {
+    if (!isLoggedIn()) {
+        showUploadError('Please log in to upload files.');
+        event.target.value = '';
+        return;
+    }
     const file = event.target.files[0];
     if (!file) return;
 
@@ -747,6 +752,12 @@ let conversations = [];
 // ---- Auth/Chat backend helpers ----
 function getAuthToken() {
     try { return localStorage.getItem('token'); } catch (_) { return null; }
+}
+
+// Simple helper to check auth state
+function isLoggedIn() {
+    const t = getAuthToken();
+    return !!(t && String(t).trim());
 }
 
 async function apiFetch(path, options = {}) {
@@ -1247,7 +1258,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (micButton) {
             // If disabled (unsupported), keep the info click; otherwise wire real handler
             if (!micButton.classList.contains('disabled')) {
-                micButton.addEventListener('click', toggleSpeechRecognition);
+                micButton.addEventListener('click', (e) => {
+                    if (!isLoggedIn()) {
+                        e.preventDefault();
+                        showNotification('Please log in to use the microphone.', 'error');
+                        return;
+                    }
+                    toggleSpeechRecognition();
+                });
             }
         }
 
@@ -1302,6 +1320,7 @@ function hideMicPopup() {
 
 // Update the toggleSpeechRecognition function
 function toggleSpeechRecognition() {
+    if (!isLoggedIn()) { showNotification('Please log in to use the microphone.', 'error'); return; }
     if (!recognition) {
         console.error('Speech recognition not initialized');
         return;
@@ -1516,6 +1535,10 @@ async function handleCommands(inputText) {
     // Image generation commands
     const imgCmdMatch = trimmed.match(/\/(imagine|image|img|im)\b/i);
     if (imgCmdMatch) {
+        if (!isLoggedIn()) {
+            showNotification('Please log in to generate images.', 'error');
+            return true;
+        }
         let prompt = trimmed.replace(/.*?\/(imagine|image|img|im)\b\s*/i, '');
         prompt = prompt.replace(/^generate(\s+an)?(\s+image)?(\s+of)?\s*/i, '').trim();
         if (!prompt) {
@@ -1527,6 +1550,10 @@ async function handleCommands(inputText) {
     }
     // OCR command
     if (/^\/?ocr\b/i.test(trimmed)) {
+        if (!isLoggedIn()) {
+            showNotification('Please log in to use OCR.', 'error');
+            return true;
+        }
         if (!uploadedFile || !uploadedFile.type || !uploadedFile.type.startsWith('image/')) {
             addMessage('Please upload an image first, then send /ocr', 'bot');
             return true;
@@ -1543,6 +1570,10 @@ async function handleCommands(inputText) {
     }
     // Describe uploaded image
     if (/^\/?(describe|vision|des)\b/i.test(trimmed)) {
+        if (!isLoggedIn()) {
+            showNotification('Please log in to describe images.', 'error');
+            return true;
+        }
         if (!uploadedFile || !uploadedFile.type || !uploadedFile.type.startsWith('image/')) {
             addMessage('Please upload an image first, then send /describe', 'bot');
             return true;
@@ -1555,6 +1586,7 @@ async function handleCommands(inputText) {
 }
 
 async function generateImageWithPollinations(prompt) {
+    if (!isLoggedIn()) { showNotification('Please log in to generate images.', 'error'); return; }
     const encoded = encodeURIComponent(prompt);
     const url = `${POLLINATIONS_BASE}${encoded}?nologo=true&enhance=true&model=flux&aspect=1:1`;
     // Show a typing indicator instead of a separate bot text to avoid duplication
@@ -1569,6 +1601,7 @@ async function generateImageWithPollinations(prompt) {
 }
 
 async function runOcrOnUploadedImage() {
+    if (!isLoggedIn()) { showNotification('Please log in to use OCR.', 'error'); return; }
     try {
         addTypingIndicator();
 
@@ -1608,6 +1641,7 @@ async function runOcrOnUploadedImage() {
 
 // Describe the uploaded image using the existing Gemini endpoint
 async function describeUploadedImage(promptText) {
+    if (!isLoggedIn()) { showNotification('Please log in to describe images.', 'error'); return; }
     try {
         addTypingIndicator();
         const imageDataUrl = await fileToBase64(uploadedFile);
