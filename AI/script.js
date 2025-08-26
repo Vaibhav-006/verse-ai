@@ -346,24 +346,43 @@ async function sendMessage() {
             text: textContent
         });
 
-        const apiKey = await getApiKey();
-        const response = await fetch(`${API_URL}?key=${apiKey}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(requestBody)
-        });
+        // Prefer backend proxy to avoid CORS and key exposure
+        let data;
+        try {
+            const proxyResp = await fetch(`${BACKEND_BASE}/ai/generate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                mode: 'cors',
+                cache: 'no-store',
+                body: JSON.stringify({ text: textContent, generationConfig: requestBody.generationConfig })
+            });
+            const proxyText = await proxyResp.text();
+            if (!proxyResp.ok) {
+                throw new Error(`Proxy error ${proxyResp.status}: ${proxyText.slice(0, 400)}`);
+            }
+            const proxyJson = JSON.parse(proxyText);
+            data = { candidates: [{ content: { parts: [{ text: proxyJson.text }] } }] };
+        } catch (proxyErr) {
+            console.warn('Proxy call failed, attempting direct Gemini call:', proxyErr);
+            const apiKey = await getApiKey();
+            const response = await fetch(`${API_URL}?key=${apiKey}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(requestBody)
+            });
 
-        if (!response.ok) {
-            const errText = await response.text().catch(() => '');
-            throw new Error(`Gemini API error ${response.status}: ${errText.slice(0, 400)}`);
+            if (!response.ok) {
+                const errText = await response.text().catch(() => '');
+                throw new Error(`Gemini API error ${response.status}: ${errText.slice(0, 400)}`);
+            }
+
+            data = await response.json().catch(async () => {
+                const txt = await response.text();
+                throw new Error(`Gemini non-JSON response: ${txt.slice(0, 400)}`);
+            });
         }
-
-        const data = await response.json().catch(async () => {
-            const txt = await response.text();
-            throw new Error(`Gemini non-JSON response: ${txt.slice(0, 400)}`);
-        });
         
         removeTypingIndicator();
 
