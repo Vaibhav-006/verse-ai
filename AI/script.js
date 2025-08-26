@@ -1070,7 +1070,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
         console.error('Speech recognition not supported');
-        document.querySelector('.mic-btn').style.display = 'none';
+        const micEl = document.querySelector('.mic-btn');
+        if (micEl) {
+            micEl.classList.add('disabled');
+            micEl.setAttribute('title', 'Voice input is not supported in this browser. Try Chrome or Edge.');
+            // Attach a click handler to inform the user
+            micEl.addEventListener('click', (e) => {
+                e.preventDefault();
+                showNotification('Voice input is not supported in this browser. Try Chrome or Edge.', 'error');
+            }, { once: false });
+        }
         // Do NOT return early; continue initializing rest of the UI
     }
 
@@ -1121,11 +1130,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
 
         const micButton = document.querySelector('.mic-btn');
-        micButton.addEventListener('click', toggleSpeechRecognition);
+        if (micButton) {
+            // If disabled (unsupported), keep the info click; otherwise wire real handler
+            if (!micButton.classList.contains('disabled')) {
+                micButton.addEventListener('click', toggleSpeechRecognition);
+            }
+        }
 
     } catch (err) {
         console.error('Microphone permission denied:', err);
-        document.querySelector('.mic-btn').style.display = 'none';
+        const micEl = document.querySelector('.mic-btn');
+        if (micEl) {
+            micEl.classList.add('disabled');
+            micEl.setAttribute('title', 'Microphone blocked. Allow mic access or use Chrome/Edge.');
+            micEl.addEventListener('click', (e) => {
+                e.preventDefault();
+                showNotification('Microphone blocked. Please allow mic access in site permissions.', 'error');
+            }, { once: false });
+        }
     }
 
     // (Already populated above)
