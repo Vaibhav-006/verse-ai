@@ -347,28 +347,24 @@ async function sendMessage() {
             text: textContent
         });
 
-        // Force backend proxy to avoid CORS and key exposure
-        console.log('[VerseAI] Calling proxy:', `${BACKEND_BASE}/ai/generate`);
+        // Direct client-side call to Google Gemini with provided API key
+        // NOTE: This exposes the key to the client. Ensure referrer restrictions are set on the key.
+        const DIRECT_API_KEY = 'AIzaSyCw9litrf3O8zjaG3sfm0oVqToUXV6rsKE';
         let data;
-        const proxyResp = await fetch(`${BACKEND_BASE}/ai/generate`, {
+        const response = await fetch(`${API_URL}?key=${DIRECT_API_KEY}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            mode: 'cors',
-            cache: 'no-store',
-            body: JSON.stringify({ text: textContent, generationConfig: requestBody.generationConfig })
+            body: JSON.stringify(requestBody)
         });
-        const proxyText = await proxyResp.text();
-        console.log('[VerseAI] Proxy status:', proxyResp.status, 'body:', proxyText.slice(0, 200));
-        if (!proxyResp.ok) {
-            throw new Error(`Proxy error ${proxyResp.status}: ${proxyText.slice(0, 400)}`);
+        const respText = await response.text();
+        if (!response.ok) {
+            throw new Error(`Gemini API error ${response.status}: ${respText.slice(0, 400)}`);
         }
-        let proxyJson;
         try {
-            proxyJson = JSON.parse(proxyText);
+            data = JSON.parse(respText);
         } catch (e) {
-            throw new Error(`Proxy non-JSON response: ${proxyText.slice(0, 400)}`);
+            throw new Error(`Gemini non-JSON response: ${respText.slice(0, 400)}`);
         }
-        data = { candidates: [{ content: { parts: [{ text: proxyJson.text }] } }] };
         
         removeTypingIndicator();
 
