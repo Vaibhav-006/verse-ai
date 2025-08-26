@@ -129,6 +129,48 @@ body {
     margin-bottom: 30px;
 }
 
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px; /* match .premium-btn scale */
+    border-radius: 25px;
+    text-decoration: none;
+    font-weight: 600;
+    color: #e6faff;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(8px);
+    transition: all 0.25s ease;
+}
+
+.back-btn i {
+    color: #00a8ff;
+}
+
+.back-btn:hover {
+    background: rgba(0, 168, 255, 0.18);
+    border-color: rgba(0, 168, 255, 0.5);
+    color: #e9fbff;
+    box-shadow: 0 6px 18px rgba(0, 168, 255, 0.18);
+    transform: translateY(-1px);
+}
+
+.back-btn:active {
+    transform: translateY(0);
+}
+
+.back-btn:focus-visible {
+    outline: 2px solid rgba(0, 168, 255, 0.65);
+    outline-offset: 2px;
+}
+
 /* Stats Grid */
 .stats-grid {
     display: grid;
