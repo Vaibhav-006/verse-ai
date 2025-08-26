@@ -1,5 +1,6 @@
-// Gemini API Key is now provided by the backend at /config/gemini-key
+// Gemini API Key is provided by the backend
 let API_KEY = null;
+const BACKEND_BASE = 'https://verse-ai.onrender.com';
 const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
 let isDarkMode = true; // Set dark mode as default
@@ -81,9 +82,14 @@ let isListening = false;
 async function getApiKey() {
     if (API_KEY) return API_KEY;
     try {
-        const res = await fetch('/config/gemini-key');
+        const res = await fetch(`${BACKEND_BASE}/config/gemini-key`);
+        if (!res.ok) {
+            throw new Error(`Key endpoint error: ${res.status}`);
+        }
         const data = await res.json();
-        if (!res.ok || !data.key) throw new Error('Gemini key not configured');
+        if (!data || !data.key) {
+            throw new Error('Gemini key missing in response');
+        }
         API_KEY = data.key;
         return API_KEY;
     } catch (e) {
@@ -351,7 +357,11 @@ async function sendMessage() {
     } catch (error) {
         console.error('Error:', error);
         removeTypingIndicator();
-        addMessage('Sorry, I encountered an error. Please try again.', 'bot');
+        const msg =
+          error && String(error).includes('Gemini')
+            ? 'Gemini is not configured. Please try again later.'
+            : 'Sorry, I encountered an error. Please try again.';
+        addMessage(msg, 'bot');
     }
 }
 

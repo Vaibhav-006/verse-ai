@@ -629,3 +629,50 @@ style.textContent = `
   }
 `;
 document.head.appendChild(style);
+
+// ----- Auth state UI toggle for navbar -----
+document.addEventListener('DOMContentLoaded', () => {
+  const loginBtn = document.querySelector('.auth-btn.login-btn');
+  const signupBtn = document.querySelector('.auth-btn.signup-btn');
+  const profileLink = document.querySelector('a[href="profile/index.html"]');
+  const navRight = document.querySelector('#nav .nav-right');
+
+  function ensureLogoutButton() {
+    let btn = document.querySelector('.auth-btn.logout-btn');
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.className = 'auth-btn logout-btn';
+      btn.textContent = 'Logout';
+      btn.addEventListener('click', () => {
+        localStorage.removeItem('token');
+        toggleAuthUI();
+        // Optionally redirect
+        window.location.href = 'index.html';
+      });
+      navRight && navRight.appendChild(btn);
+    }
+    return btn;
+  }
+
+  function toggleAuthUI() {
+    const token = localStorage.getItem('token');
+    const logoutBtn = document.querySelector('.auth-btn.logout-btn');
+
+    if (token) {
+      // Logged in: hide login/signup, show profile, show logout
+      if (loginBtn) loginBtn.style.display = 'none';
+      if (signupBtn) signupBtn.style.display = 'none';
+      if (profileLink) profileLink.style.display = 'inline-block';
+      ensureLogoutButton().style.display = 'inline-block';
+    } else {
+      // Logged out: show login/signup, hide profile, hide/remove logout
+      if (loginBtn) loginBtn.style.display = '';
+      if (signupBtn) signupBtn.style.display = '';
+      if (profileLink) profileLink.style.display = 'none';
+      if (logoutBtn) logoutBtn.style.display = 'none';
+    }
+  }
+
+  // Initialize state
+  toggleAuthUI();
+});

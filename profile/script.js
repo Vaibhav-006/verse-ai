@@ -1,4 +1,15 @@
 // Three.js Background Setup
+const BACKEND_BASE = 'https://verse-ai.onrender.com';
+
+// Require auth token on profile page
+document.addEventListener('DOMContentLoaded', () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+        // Not logged in, redirect to login
+        window.location.href = '../login.html';
+        return;
+    }
+});
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer({
@@ -122,8 +133,10 @@ document.getElementById('avatarUpload').addEventListener('change', async (e) => 
             formData.append('avatar', file);
 
             try {
-                const response = await fetch('/api/profile/avatar', {
+                const token = localStorage.getItem('token');
+                const response = await fetch(`${BACKEND_BASE}/api/profile/avatar`, {
                     method: 'POST',
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : undefined,
                     body: formData
                 });
 
