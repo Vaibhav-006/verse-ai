@@ -13,6 +13,74 @@
     --hover-color: #d6e4f2;
 }
 
+/* --- Command hint popup --- */
+.input-wrap {
+    position: relative;
+    width: 100%;
+    max-width: 880px; /* match input width */
+    margin: 0 auto;
+}
+
+.command-hint {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 0; /* align with left edge of message box */
+    transform: translateY(0);
+    background: var(--bot-message-bg);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 12px 14px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: min(92vw, 880px);
+}
+
+.command-hint .hint-title {
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+}
+
+.command-hint .hint-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.command-hint .hint-chip {
+    border: 1px solid var(--border-color);
+    background: var(--chip-color);
+    color: var(--text-color);
+    border-radius: 999px;
+    padding: 8px 12px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.command-hint .hint-chip i { margin-right: 6px; }
+
+.command-hint .hint-chip:hover {
+    background: var(--primary-color);
+    color: #fff;
+}
+
+.command-hint .hint-note {
+    font-size: 12px;
+    opacity: 0.7;
+}
+
+.command-hint.hidden { opacity: 0; transform: translateY(8px); pointer-events: none; }
+
+@media (max-width: 768px) {
+    .command-hint { bottom: calc(100% + 6px); padding: 10px 12px; max-width: calc(100% - 8px); }
+}
+
 [data-theme="dark"] {
     --bg-color: #0f172a; /* Dark Mode */
     --text-color: #e8eaed;
@@ -361,9 +429,12 @@ body {
 .input-container {
     background-color: var(--chat-bg); /* Match with chat background */
     border-top: 1px solid var(--border-color);
-    padding: 15px;
+    padding: 20px; /* match .sidebar-footer padding for alignment */
     position: relative;
     margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .chat-input-container {
@@ -374,7 +445,9 @@ body {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin: 10px;
+    margin: 0; /* remove extra vertical offset */
+    width: 100%;
+    box-shadow: 0 4px 24px rgba(30,128,193,0.15);
 }
 
 textarea {
@@ -964,6 +1037,7 @@ textarea {
         padding: 8px 12px;
         margin: 8px;
     }
+    .input-wrap { max-width: 100%; }
 
     textarea {
         font-size: 14px;

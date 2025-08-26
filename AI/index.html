@@ -64,7 +64,17 @@
         </div>
         
         <div class="input-container">
-            <div class="chat-input-container">
+            <div class="input-wrap">
+                <!-- Quick command hint popup -->
+                <div class="command-hint" id="commandHint" aria-live="polite">
+                    <div class="hint-title"><i class="fas fa-wand-magic-sparkles"></i> Quick commands</div>
+                    <div class="hint-actions">
+                        <button class="hint-chip" data-cmd="/img "><i class="fas fa-image"></i> Generate image (/img)</button>
+                        <button class="hint-chip" data-cmd="/des "><i class="fas fa-eye"></i> Describe image (/des)</button>
+                    </div>
+                    <div class="hint-note">Type anything to dismiss</div>
+                </div>
+                <div class="chat-input-container">
                 <div class="file-upload">
                     <input type="file" id="fileInput" accept="image/*,.pdf,text/plain" onchange="handleFileUpload(event)" />
                     <label for="fileInput">
@@ -89,6 +99,7 @@
                     <button id="sendBtn" disabled>
                         <i class="fas fa-paper-plane"></i>
                     </button>
+                </div>
                 </div>
             </div>
             <div class="input-footer">

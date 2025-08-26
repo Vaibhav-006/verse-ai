@@ -60,6 +60,52 @@ textarea.addEventListener('input', () => {
     textarea.style.height = textarea.scrollHeight + 'px';
 });
 
+// --- Command hint popup logic ---
+const commandHintEl = document.getElementById('commandHint');
+function showCommandHint() {
+    if (!commandHintEl) return;
+    // Cancel any in-flight tweens to prevent stacking
+    if (window.gsap && gsap.killTweensOf) gsap.killTweensOf(commandHintEl);
+    commandHintEl.classList.remove('hidden');
+    // Animate in similar to chat elements
+    gsap.fromTo(commandHintEl,
+        { opacity: 0, y: 8 },
+        { opacity: 1, y: 0, duration: 0.35, ease: 'power2.out' }
+    );
+}
+function hideCommandHint() {
+    if (!commandHintEl) return;
+    // Cancel any in-flight tweens to prevent stacking
+    if (window.gsap && gsap.killTweensOf) gsap.killTweensOf(commandHintEl);
+    // Animate out then set hidden
+    gsap.to(commandHintEl, {
+        opacity: 0,
+        y: 8,
+        duration: 0.25,
+        ease: 'power2.inOut',
+        onComplete: () => commandHintEl.classList.add('hidden')
+    });
+}
+// Dismiss when user starts typing or focuses the input
+if (textarea) {
+    textarea.addEventListener('input', hideCommandHint);
+    textarea.addEventListener('focus', hideCommandHint);
+}
+// Handle hint chip clicks: insert command into input
+if (commandHintEl) {
+    commandHintEl.addEventListener('click', (e) => {
+        const btn = e.target.closest('.hint-chip');
+        if (!btn) return;
+        const cmd = btn.dataset.cmd || '';
+        if (textarea) {
+            textarea.value = cmd;
+            textarea.dispatchEvent(new Event('input'));
+            textarea.focus();
+        }
+        hideCommandHint();
+    });
+}
+
 // Send message functionality
 document.getElementById('sendBtn').addEventListener('click', sendMessage);
 textarea.addEventListener('keypress', (e) => {
@@ -78,6 +124,9 @@ let wasVoiceInput = false;
 // Add these variables at the top
 let isTyping = false;
 let currentMessageTl = null;
+// Auto-scroll control for the current bot response
+let autoScrollForCurrent = false;
+let autoScrollScrollHandler = null;
 
 // Add these variables at the top
 let currentConversationId = null;
@@ -324,6 +373,8 @@ function showUploadError(message) {
 async function sendMessage() {
     const userInput = textarea.value.trim();
     if (!userInput && !fileContent) return;
+    // Ensure command hint is hidden once a message is being sent
+    hideCommandHint();
 
     // Add user message to chat with file context
     let messageText = userInput || '';
@@ -514,6 +565,24 @@ function addMessage(text, sender) {
     if (stopBtn) stopBtn.style.display = 'block';
     isTyping = true;
 
+    // Setup auto-scroll monitoring for bot replies
+    if (sender === 'bot') {
+        autoScrollForCurrent = true; // enabled until user interferes
+        // Remove any previous handler just in case
+        if (autoScrollScrollHandler) {
+            messagesContainer.removeEventListener('scroll', autoScrollScrollHandler);
+        }
+        autoScrollScrollHandler = () => {
+            // If user scrolls away from bottom by threshold, disable auto-scroll for this response
+            const threshold = 24; // px from bottom
+            const atBottom = messagesContainer.scrollTop + messagesContainer.clientHeight >= (messagesContainer.scrollHeight - threshold);
+            if (!atBottom) {
+                autoScrollForCurrent = false;
+            }
+        };
+        messagesContainer.addEventListener('scroll', autoScrollScrollHandler, { passive: true });
+    }
+
     // Create timeline for message animation
     currentMessageTl = gsap.timeline({
         onComplete: () => {
@@ -521,6 +590,12 @@ function addMessage(text, sender) {
             if (!wasVoiceInput && stopBtn) {
                 stopBtn.style.display = 'none';
             }
+            // Cleanup auto-scroll listener after this response finishes
+            if (autoScrollScrollHandler) {
+                messagesContainer.removeEventListener('scroll', autoScrollScrollHandler);
+                autoScrollScrollHandler = null;
+            }
+            autoScrollForCurrent = false;
         }
     });
 
@@ -559,6 +634,14 @@ function addMessage(text, sender) {
                     `;
                 });
             messageContent.innerHTML = formattedText;
+            // Keep view pinned to bottom while auto-scroll is active for this response
+            if (sender === 'bot' && autoScrollForCurrent) {
+                // Use rAF to avoid layout thrash during GSAP updates
+                requestAnimationFrame(() => {
+                    // Avoid smooth here to keep up with typing
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                });
+            }
         }, index * 0.01);
     });
 
@@ -615,13 +698,21 @@ function addMessage(text, sender) {
         });
     }
 
-    // Auto-scroll
-    setTimeout(() => {
-        messagesContainer.scrollTo({
-            top: messagesContainer.scrollHeight,
-            behavior: 'smooth'
+    // Initial scroll to bottom when message node is appended
+    if (sender === 'bot') {
+        // Snap to bottom initially to reveal the start of the response
+        requestAnimationFrame(() => {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
         });
-    }, 100);
+    } else {
+        // For user messages, keep smooth scroll
+        setTimeout(() => {
+            messagesContainer.scrollTo({
+                top: messagesContainer.scrollHeight,
+                behavior: 'smooth'
+            });
+        }, 50);
+    }
 
     // Add to chat history in sidebar
     if (sender === 'user') {
@@ -1035,6 +1126,8 @@ document.querySelector('.new-chat').addEventListener('click', () => {
     textarea.value = '';
     textarea.style.height = 'auto';
     document.getElementById('sendBtn').disabled = true;
+    // Show command hints for fresh chat
+    showCommandHint();
 });
 
 // Add hover animation for messages
@@ -1151,6 +1244,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // (Already populated above)
+
+    // If no messages yet, show quick command hint
+    try {
+        const cm = document.getElementById('chatMessages');
+        const hasContent = cm && cm.children && cm.children.length > 0;
+        if (!hasContent) showCommandHint();
+    } catch (_) {}
 
     // Handle placeholder text for different screen sizes
     const updatePlaceholder = () => {
