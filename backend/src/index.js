@@ -10,6 +10,7 @@ import authRoutes from './routes/auth.js';
 import profileRoutes from './routes/profile.js';
 import { connectMongo } from './db/mongo.js';
 import configRoutes from './routes/config.js';
+import aiRoutes from './routes/ai.js';
 
 dotenv.config();
 
@@ -63,6 +64,7 @@ app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 app.use('/', authRoutes); // /signup, /login
 app.use('/api/profile', profileRoutes); // /update, /avatar
 app.use('/config', configRoutes); // /gemini-key
+app.use('/ai', aiRoutes); // /generate
 
 // 404 handler
 app.use((req, res) => {
