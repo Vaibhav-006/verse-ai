@@ -13,20 +13,96 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/locomotive-scroll@3.5.4/dist/locomotive-scroll.css">
-    <!-- Auth Modal minimal styles -->
+    <!-- Auth Modal enhanced styles -->
     <style>
-      .auth-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(6px); display: none; align-items: center; justify-content: center; z-index: 1000; }
-      .auth-modal { background: rgba(0,0,0,0.7); border: 1px solid rgba(0,255,255,0.4); box-shadow: 0 0 25px rgba(0,255,255,0.25); border-radius: 12px; width: 90%; max-width: 400px; color: #0ff; padding: 20px; position: relative; }
-      .auth-close { position: absolute; right: 10px; top: 10px; background: transparent; border: none; color: #0ff; font-size: 20px; cursor: pointer; }
-      .auth-header { display: flex; gap: 8px; margin-bottom: 12px; }
-      .auth-tab { flex: 1; padding: 10px; border: 1px solid rgba(0,255,255,0.4); background: rgba(255,255,255,0.05); color: #0ff; cursor: pointer; border-radius: 8px; }
-      .auth-tab.active { background: linear-gradient(45deg, #00f, #0ff); color: #fff; box-shadow: 0 0 12px #0ff; }
-      .auth-body input, .auth-body button { width: 100%; padding: 12px; margin: 10px 0; border: none; border-radius: 8px; font-size: 16px; }
-      .auth-body input { background: rgba(255,255,255,0.08); color: #0ff; border: 1px solid rgba(0,255,255,0.35); text-align: center; }
-      .auth-body input::placeholder { color: rgba(0,255,255,0.5); }
-      .auth-body button { background: linear-gradient(45deg, #00f, #0ff); color: #fff; font-weight: 700; cursor: pointer; box-shadow: 0 0 10px #0ff; }
-      .auth-msg { font-size: 14px; min-height: 18px; margin-top: 4px; }
+      /* Backdrop */
+      .auth-backdrop {
+        position: fixed; inset: 0;
+        background: radial-gradient(1200px 600px at 50% 10%, rgba(0,255,255,0.10), transparent 60%), rgba(0,0,0,0.65);
+        backdrop-filter: blur(8px) saturate(120%);
+        display: none; align-items: center; justify-content: center; z-index: 1000;
+        animation: authFadeIn .2s ease-out;
+      }
+
+      /* Modal */
+      .auth-modal {
+        position: relative;
+        width: 92%; max-width: 480px;
+        color: #d9feff;
+        padding: 22px 22px 26px;
+        border-radius: 16px;
+        border: 1px solid rgba(0,255,255,0.35);
+        background: linear-gradient(180deg, rgba(10,16,24,0.75), rgba(6,10,16,0.85));
+        box-shadow:
+          0 0 0 1px rgba(0,255,255,0.15) inset,
+          0 20px 60px rgba(0,0,0,0.55),
+          0 0 36px rgba(0,255,255,0.22);
+        overflow: hidden;
+      }
+      .auth-modal::before {
+        content: '';
+        position: absolute; inset: -2px;
+        background: radial-gradient(400px 140px at 20% -10%, rgba(0,255,255,0.25), transparent 60%),
+                    radial-gradient(500px 180px at 80% 0%, rgba(0,128,255,0.18), transparent 65%);
+        filter: blur(18px); opacity: 0.5; pointer-events: none;
+      }
+
+      /* Close button (bigger and clickable) */
+      .auth-close {
+        position: absolute; right: 10px; top: 10px;
+        width: 40px; height: 40px; line-height: 40px;
+        background: rgba(0,255,255,0.06);
+        border: 1px solid rgba(0,255,255,0.35);
+        border-radius: 10px;
+        color: #a8ffff; font-size: 22px; font-weight: 700;
+        cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+        transition: all .2s ease;
+        box-shadow: 0 0 12px rgba(0,255,255,0.15) inset;
+      }
+      .auth-close:hover { background: rgba(0,255,255,0.12); color: #e8ffff; transform: translateY(-1px); box-shadow: 0 0 18px rgba(0,255,255,0.28); }
+      .auth-close:active { transform: translateY(0); }
+
+      /* Header tabs */
+      .auth-header { display: flex; gap: 12px; margin: 8px 42px 16px 4px; }
+      .auth-tab {
+        flex: 1; padding: 12px 14px;
+        border: 1px solid rgba(0,255,255,0.35);
+        background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+        color: #9afcff; cursor: pointer; border-radius: 12px; font-weight: 600;
+        letter-spacing: .2px; transition: all .2s ease; text-shadow: 0 0 12px rgba(0,255,255,0.15);
+      }
+      .auth-tab:hover { box-shadow: 0 6px 18px rgba(0,255,255,0.12); transform: translateY(-1px); }
+      .auth-tab.active {
+        background: linear-gradient(135deg, #0066ff, #00eaff);
+        color: #fff; box-shadow: 0 10px 26px rgba(0,186,255,0.45);
+        border-color: rgba(0,255,255,0.55);
+      }
+
+      /* Body */
+      .auth-body { padding: 0 4px; }
+      .auth-body input, .auth-body button {
+        width: 100%; padding: 13px 14px; margin: 10px 0; border: none; border-radius: 12px; font-size: 16px;
+        transition: all .2s ease;
+      }
+      .auth-body input {
+        background: rgba(255,255,255,0.06); color: #c6fdff;
+        border: 1px solid rgba(0,255,255,0.28); text-align: center;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.25) inset;
+      }
+      .auth-body input::placeholder { color: rgba(160,255,255,0.55); }
+      .auth-body input:focus { outline: none; border-color: rgba(0,255,255,0.6); box-shadow: 0 0 0 3px rgba(0,255,255,0.18), 0 2px 12px rgba(0,0,0,0.35) inset; }
+
+      .auth-body button {
+        background: linear-gradient(135deg, #0066ff, #00eaff); color: #fff; font-weight: 800; letter-spacing: .2px; cursor: pointer;
+        box-shadow: 0 10px 24px rgba(0,186,255,0.35);
+      }
+      .auth-body button:hover { transform: translateY(-1px); box-shadow: 0 14px 28px rgba(0,186,255,0.45); }
+      .auth-body button:active { transform: translateY(0); }
+
+      .auth-msg { font-size: 14px; min-height: 18px; margin-top: 6px; color: #8be9ff; text-align: center; opacity: .9; }
       .hidden { display: none !important; }
+
+      @keyframes authFadeIn { from { opacity: 0 } to { opacity: 1 } }
     </style>
   </head>
   <body>
