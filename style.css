@@ -96,6 +96,18 @@ body {
   color: white;
 }
 
+/* Logout button: clear and visible on dark navbar */
+.logout-btn {
+  background: transparent;
+  border: 2px solid #ff6b6b;
+  color: #ff6b6b;
+}
+
+.logout-btn:hover {
+  background: #ff6b6b;
+  color: #000;
+}
+
 .auth-btn::before {
   content: '';
   position: absolute;

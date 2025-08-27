@@ -74,16 +74,62 @@ tl.from('.sidebar', {
     ease: 'power3.out'
 }, '-=0.5');
 
-// Default placeholder data (stats/activities can be wired later)
+// Default state (will be replaced by live data)
 const userData = {
-    name: 'John Doe',
+    name: 'User',
     role: 'Premium Member',
-    stats: { chats: 247, hours: 42, rating: 4.8 },
-    activities: [
-        { type: 'chat', title: 'AI Chat Session', time: '2 hours ago' },
-        { type: 'achievement', title: 'Reached 200+ chats', time: '1 day ago' }
-    ]
+    stats: { chats: 0, hours: 0, rating: 4.8 },
+    activities: []
 };
+
+function renderStats(stats) {
+    const chatEl = document.getElementById('chatCount');
+    const hoursEl = document.getElementById('hoursCount');
+    const ratingEl = document.getElementById('ratingScore');
+    if (chatEl && typeof stats.chats === 'number') {
+        gsap.to(chatEl, { innerText: stats.chats, duration: 1.2, snap: { innerText: 1 } });
+    }
+    if (hoursEl && typeof stats.hours === 'number') {
+        gsap.to(hoursEl, { innerText: stats.hours, duration: 1.2, snap: { innerText: 0.1 } });
+    }
+    if (ratingEl && typeof stats.rating === 'number') {
+        gsap.to(ratingEl, { innerText: stats.rating, duration: 1.2, snap: { innerText: 0.1 } });
+    }
+}
+
+function renderActivity(items) {
+    const timeline = document.getElementById('activityTimeline');
+    if (!timeline) return;
+    timeline.innerHTML = '';
+    items.forEach(activity => {
+        const activityItem = document.createElement('div');
+        activityItem.className = 'activity-item';
+        const when = activity.at ? new Date(activity.at) : null;
+        const whenText = when ? when.toLocaleString() : (activity.time || '');
+        activityItem.innerHTML = `
+            <div class="activity-icon">
+                <i class="fas fa-${activity.type === 'achievement' ? 'trophy' : 'comments'}"></i>
+            </div>
+            <div class="activity-content">
+                <h4>${activity.title || 'Activity'}</h4>
+                <p>${whenText}</p>
+            </div>
+        `;
+        timeline.appendChild(activityItem);
+
+        gsap.from(activityItem, {
+            x: -50,
+            opacity: 0,
+            duration: 0.8,
+            scrollTrigger: {
+                trigger: activityItem,
+                start: 'top bottom',
+                end: 'top center',
+                toggleActions: 'play none none reverse'
+            }
+        });
+    });
+}
 
 // Load actual user profile from backend
 document.addEventListener('DOMContentLoaded', async () => {
@@ -111,60 +157,32 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             // Optionally update role from backend in future
         }
+        // Fetch dashboard summary (stats + recent activity)
+        const sum = await fetch(`${BACKEND_BASE}/api/dashboard/summary`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (sum.ok) {
+            const d = await sum.json();
+            if (d.stats) {
+                userData.stats = d.stats;
+                renderStats(d.stats);
+            }
+            if (Array.isArray(d.recentActivity)) {
+                userData.activities = d.recentActivity;
+                renderActivity(d.recentActivity);
+            }
+        }
     } catch (err) {
         console.warn('Failed to fetch profile for overview:', err);
     }
 });
 
-// Animate stats counting
-gsap.to('#chatCount', {
-    innerText: userData.stats.chats,
-    duration: 2,
-    snap: { innerText: 1 }
-});
-
-gsap.to('#hoursCount', {
-    innerText: userData.stats.hours,
-    duration: 2,
-    snap: { innerText: 1 }
-});
-
-gsap.to('#ratingScore', {
-    innerText: userData.stats.rating,
-    duration: 2,
-    snap: { innerText: 0.1 }
-});
+// Initial render with defaults (will be updated after fetch)
+renderStats(userData.stats);
 
 // Create activity timeline
-function createActivityTimeline() {
-    const timeline = document.getElementById('activityTimeline');
-    userData.activities.forEach(activity => {
-        const activityItem = document.createElement('div');
-        activityItem.className = 'activity-item';
-        activityItem.innerHTML = `
-            <div class="activity-icon">
-                <i class="fas fa-${activity.type === 'chat' ? 'comments' : 'trophy'}"></i>
-            </div>
-            <div class="activity-content">
-                <h4>${activity.title}</h4>
-                <p>${activity.time}</p>
-            </div>
-        `;
-        timeline.appendChild(activityItem);
-
-        // Animate activity items
-        gsap.from(activityItem, {
-            x: -50,
-            opacity: 0,
-            duration: 0.8,
-            scrollTrigger: {
-                trigger: activityItem,
-                start: 'top bottom',
-                end: 'top center',
-                toggleActions: 'play none none reverse'
-            }
-        });
-    });
+function createActivityTimeline(items = userData.activities) {
+    renderActivity(items);
 }
 
 // Initialize activity timeline

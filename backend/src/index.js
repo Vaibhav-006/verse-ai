@@ -12,6 +12,7 @@ import { connectMongo } from './db/mongo.js';
 import configRoutes from './routes/config.js';
 import aiRoutes from './routes/ai.js';
 import chatRoutes from './routes/chat.js';
+import dashboardRoutes from './routes/dashboard.js';
 
 dotenv.config();
 
@@ -67,6 +68,7 @@ app.use('/api/profile', profileRoutes); // /update, /avatar
 app.use('/config', configRoutes); // /gemini-key
 app.use('/ai', aiRoutes); // /generate
 app.use('/api/chats', chatRoutes); // chat history
+app.use('/api/dashboard', dashboardRoutes); // summary stats for profile/dashboard
 
 // 404 handler
 app.use((req, res) => {
