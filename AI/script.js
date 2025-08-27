@@ -576,11 +576,14 @@ function addMessage(text, sender) {
         return;
     }
 
-    // Split text into larger chunks for better handling of long responses
-    const chunks = text.split(/([.!?]\s+)/).map((chunk, i, arr) => {
-        if (i % 2 === 0) return chunk;
-        return chunk + (arr[i + 1] || '');
-    }).filter(Boolean);
+    // Split text into sentence-sized chunks without duplicating content
+    // e.g., "Hello there! How are you?" -> ["Hello there! ", "How are you?"]
+    const parts = text.split(/([.!?]+\s*)/);
+    const chunks = [];
+    for (let i = 0; i < parts.length; i += 2) {
+        const sentence = (parts[i] || '') + (parts[i + 1] || '');
+        if (sentence && sentence.trim().length) chunks.push(sentence);
+    }
     let currentText = '';
 
     messageDiv.appendChild(messageContent);
